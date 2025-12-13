@@ -1,5 +1,5 @@
 import typer
-from .commands import init, prompt, index, read_context, watchdog
+from .commands import init, prompt, index, read_context, watchdog, chat
 
 
 app = typer.Typer(
@@ -14,6 +14,7 @@ app.command()(prompt.edit_prompt)
 app.command()(index.index)
 app.command()(read_context.read)
 app.command()(watchdog.watchdog)
+app.command()(chat.chat)
 
 
 if __name__ == "__main__":

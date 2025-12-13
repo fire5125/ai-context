@@ -1,5 +1,7 @@
 import json
 import typer
+
+from .read_context import export_context_to_file
 from .source.settings import *
 from .source.messages import *
 from .index import index_to_text_and_db
@@ -138,6 +140,9 @@ def init():
         # Автоматическая индексация после init
         typer.secho(f" - Запуск автоматической индексации проекта...", fg=COLORS.INFO)
         index_to_text_and_db()
+
+        # Экспортируем контекст в файл
+        export_context_to_file(Path('./out.txt'))
 
         typer.secho(f" - ai-context успешно инициализирован!", fg=COLORS.SUCCESS)
         typer.secho(f" - Созданы файлы", fg=COLORS.SUCCESS)
