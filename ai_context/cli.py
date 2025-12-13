@@ -1,5 +1,5 @@
 import typer
-from commands import init, prompt, index,read_context, watchdog
+from .commands import init, prompt, index, read_context, watchdog
 
 
 app = typer.Typer(
@@ -12,7 +12,7 @@ app = typer.Typer(
 app.command()(init.init)
 app.command()(prompt.edit_prompt)
 app.command()(index.index)
-app.command()(read_context.read_context)
+app.command()(read_context.read)
 app.command()(watchdog.watchdog)
 
 

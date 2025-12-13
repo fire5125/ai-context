@@ -2,8 +2,8 @@ import typer
 import sqlite3
 from pathlib import Path
 from pathspec import PathSpec
-from .source.messages import *
-from .source.settings import CONTEXT_FILE, CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
+from .source.messages import COLORS
+from .source.settings import CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
 
 def load_ai_ignore() -> PathSpec:
     """Загружает правила игнорирования из .ai-context/.ai-ignore."""
@@ -13,7 +13,7 @@ def load_ai_ignore() -> PathSpec:
         return PathSpec.from_lines('gitwildmatch', lines)
     else:
         AI_IGNORE.write_text("# Add file/folder patterns to ignore (like .gitignore)\n", encoding="utf-8")
-        typer.secho(f" - {ICONS.file} Создан .ai-context/.ai-ignore", fg=typer.colors.BLUE)
+        typer.secho(f" - Создан .ai-context/.ai-ignore", fg=typer.colors.BLUE)
         return PathSpec.from_lines('gitwildmatch', [])
 
 def is_binary(path: Path) -> bool:
@@ -39,10 +39,10 @@ def should_index(path: Path, ai_ignore: PathSpec) -> bool:
         return False
     return True
 
-def write_to_text_file(context_lines):
-    CONTEXT_FILE.write_text("".join(context_lines), encoding="utf-8")
-    typer.secho(f" - {ICONS.success} Контекст сохранён в {CONTEXT_FILE}", fg=COLORS.SUCCESS)
-    typer.secho(f" - {ICONS.file} Найдено ~{len(context_lines) // 4} файлов", fg=COLORS.INFO)
+# def write_to_text_file(context_lines):
+#     CONTEXT_FILE.write_text("".join(context_lines), encoding="utf-8")
+#     typer.secho(f" - Контекст сохранён в {CONTEXT_FILE}", fg=COLORS.SUCCESS)
+#     typer.secho(f" - Найдено ~{len(context_lines) // 4} файлов", fg=COLORS.INFO)
 
 def write_to_sqlite(indexed_files):
     """Сохраняет список файлов (rel_path, content) в SQLite БД."""
@@ -64,18 +64,18 @@ def write_to_sqlite(indexed_files):
     """, data)
     conn.commit()
     conn.close()
-    typer.secho(f" - {ICONS.success} Контекст сохранён в {CONTEXT_DB}", fg=COLORS.SUCCESS)
+    typer.secho(f" - Контекст сохранён в {CONTEXT_DB}", fg=COLORS.SUCCESS)
 
 def index_to_text_and_db():
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(f" - {ICONS.error} {INDEX_INIT_ERROR}", fg=COLORS.ERROR)
+        typer.secho(f" - При инициализации ai-context у нас ошибка!", fg=COLORS.ERROR)
         raise typer.Exit(1)
 
     ai_ignore = load_ai_ignore()
     context_lines = []
     indexed_files = []  # для SQLite: [(rel_path, content), ...]
 
-    typer.secho(f" - {ICONS.folder} {INDEX_SCAN}", fg=COLORS.INFO)
+    typer.secho(f" - Сканирование проекта...", fg=COLORS.INFO)
 
     for path in Path.cwd().rglob("*"):
         if should_index(path, ai_ignore):
@@ -89,10 +89,10 @@ def index_to_text_and_db():
                 # Для SQLite
                 indexed_files.append((rel_path, content))
             except Exception as e:
-                typer.secho(f"- {ICONS.error} Не удалось прочитать {rel_path}: {e}", fg=COLORS.WARNING)
+                typer.secho(f"- Не удалось прочитать {rel_path}: {e}", fg=COLORS.WARNING)
 
     # Сохраняем в оба формата
-    write_to_text_file(context_lines)
+    # write_to_text_file(context_lines)
     write_to_sqlite(indexed_files)
 
 def index():

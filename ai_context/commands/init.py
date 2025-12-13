@@ -2,7 +2,7 @@ import json
 import typer
 from .source.settings import *
 from .source.messages import *
-
+from .index import index_to_text_and_db
 
 def ensure_gitignore_ignores_ai_context():
     """Добавляет .ai-context/ в .gitignore, если ещё не добавлен."""
@@ -15,18 +15,19 @@ def ensure_gitignore_ignores_ai_context():
                 with GITIGNORE.open("a", encoding="utf-8") as f:
                     f.write(gitignore_text)
 
-                typer.secho(f" - {ICONS.success} {GITIGNORE_SUCCESS}", fg=COLORS.SUCCESS)
+                typer.secho(f" - Добавлено '.ai-context/' в .gitignore", fg=COLORS.SUCCESS)
 
             else:
-                typer.secho(f" - {ICONS.info} {GITIGNORE_WARNING}", fg=COLORS.WARNING)
+                typer.secho(f" - .ai-context/' уже в .gitignore", fg=COLORS.WARNING)
 
         else:
             # Создаём .gitignore, если его нет
             GITIGNORE.write_text(gitignore_text, encoding="utf-8")
-            typer.secho(f" - {ICONS.success} {GITIGNORE_CREATE}", fg=COLORS.SUCCESS)
+            typer.secho(f" - Создан .gitignore с '.ai-context/'", fg=COLORS.SUCCESS)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {GITIGNORE_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При создании строки '.ai-context/' в .gitignore у нас ошибка!\n"
+                    f"{err.__str__()}", fg=COLORS.ERROR)
         raise
 
 
@@ -45,10 +46,11 @@ def create_secrets_file():
             ),
             encoding="utf-8"
         )
-        typer.secho(f" - {ICONS.key} {SECRET_SUCCESS}", fg=COLORS.INFO)
+        typer.secho(f" - Создан secrets.json (не коммить в Git!)", fg=COLORS.INFO)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {SECRET_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При создании secrets.json у нас ошибка!\n"
+                    f"{err.__str__()}", fg=COLORS.ERROR)
         raise
 
 
@@ -57,10 +59,11 @@ def create_dialog_file():
 
     try:
         DIALOG_FILE.write_text("[]", encoding="utf-8")
-        typer.secho(f" - {ICONS.chat} {DIALOG_SUCCESS}", fg=COLORS.INFO)
+        typer.secho(f" - Создан dialog.json", fg=COLORS.INFO)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {DIALOG_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При создании dialog.json у нас ошибка!\n"
+                    f"{err.__str__()}", fg=COLORS.ERROR)
         raise
 
 
@@ -68,10 +71,11 @@ def create_prompt_file():
     """Создает system-prompt.txt, если его нет."""
     try:
         PROMPT_FILE.write_text(DEFAULT_PROMPT, encoding="utf-8")
-        typer.secho(f" - {ICONS.file} {PROMPT_SUCCESS}", fg=COLORS.INFO)
+        typer.secho(f" - Создан prompt.txt", fg=COLORS.INFO)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {PROMPT_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При создании system-prompt.txt у нас ошибка!\n"
+                    f"{err.__str__()}", fg=COLORS.ERROR)
         raise
 
 
@@ -102,12 +106,12 @@ pyproject.toml
 *.txt
         """
         AI_IGNORE.write_text(ignore_text, encoding="utf-8")
-        typer.secho(f" - {ICONS.file} {AI_IGNORE_SUCCESS}", fg=COLORS.INFO)
+        typer.secho(f" - Создан .ai-ignore", fg=COLORS.INFO)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {AI_IGNORE_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При инициализации .ai-ignore у нас ошибка!\n"
+                    f"{err.__str__()}", fg=COLORS.ERROR)
         raise
-
 
 
 def init():
@@ -115,12 +119,12 @@ def init():
 
     try:
         if AI_CONTEXT_DIR.exists():
-            typer.secho(f" - {ICONS.warning} {INIT_CREATE_WARNING}", fg=COLORS.WARNING)
+            typer.secho(f" - Папка .ai-context уже существует", fg=COLORS.WARNING)
             raise typer.Exit(code=1)
 
         # Создаём папку
         AI_CONTEXT_DIR.mkdir()
-        typer.secho(f" - {ICONS.folder} {INIT_CREATE_DIR}", fg=COLORS.SUCCESS)
+        typer.secho(f" - Создана папка .ai-context", fg=COLORS.SUCCESS)
 
         # Добавляем в .gitignore
         ensure_gitignore_ignores_ai_context()
@@ -131,10 +135,14 @@ def init():
         create_prompt_file()
         create_ai_context_ignore()
 
-        typer.secho(f" - {ICONS.ai} {INIT_SUCCESS}", fg=COLORS.SUCCESS)
-        typer.secho(f" - {ICONS.success} {INIT_INFO}", fg=COLORS.SUCCESS)
+        # Автоматическая индексация после init
+        typer.secho(f" - Запуск автоматической индексации проекта...", fg=COLORS.INFO)
+        index_to_text_and_db()
+
+        typer.secho(f" - ai-context успешно инициализирован!", fg=COLORS.SUCCESS)
+        typer.secho(f" - Созданы файлы", fg=COLORS.SUCCESS)
         for line in INIT_FINISH_ALL_COMMANDS:
             typer.echo(line)
 
     except Exception as err:
-        typer.secho(f" - {ICONS.error} {INIT_ERROR}\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При инициализации ai-context у нас ошибка!\n{err.__str__()}", fg=COLORS.ERROR)

@@ -2,17 +2,17 @@ import sqlite3
 import typer
 from pathlib import Path
 from .source.settings import CONTEXT_DB, AI_CONTEXT_DIR
-from .source.messages import ICONS, COLORS
+from .source.messages import COLORS
 
 
 def export_context_to_file(output_path: Path):
     """Экспортирует контекст из SQLite БД в текстовый файл в формате context.txt."""
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(f" - {ICONS.error} Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        typer.secho(f" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
 
     if not CONTEXT_DB.exists():
-        typer.secho(f" - {ICONS.error} База данных {CONTEXT_DB} не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        typer.secho(f" - База данных {CONTEXT_DB} не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
 
     output_path = Path(output_path).resolve()
@@ -24,7 +24,7 @@ def export_context_to_file(output_path: Path):
     conn.close()
 
     if not rows:
-        typer.secho(f" - {ICONS.warning} База данных пуста.", fg=COLORS.WARNING)
+        typer.secho(f" - База данных пуста.", fg=COLORS.WARNING)
         output_path.write_text("", encoding="utf-8")
         return
 
@@ -35,9 +35,9 @@ def export_context_to_file(output_path: Path):
         lines.append("\n" + "="*60 + "\n")
 
     output_path.write_text("".join(lines), encoding="utf-8")
-    typer.secho(f" - {ICONS.success} Контекст экспортирован в {output_path}", fg=COLORS.SUCCESS)
+    typer.secho(f" - Контекст экспортирован в {output_path}", fg=COLORS.SUCCESS)
 
 
-def read_context(output_file: str = typer.Argument(..., help="Путь к выходному текстовому файлу")):
+def read(output_file: str = typer.Argument(default='./out.txt', help="Путь к выходному текстовому файлу")):
     """Команда: ai-context read-context ./output.txt — воссоздаёт context.txt из SQLite БД."""
     export_context_to_file(Path(output_file))
