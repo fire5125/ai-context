@@ -106,6 +106,7 @@ dist/
 MANIFEST
 pyproject.toml
 *.txt
+*.py~
         """
         AI_IGNORE.write_text(ignore_text, encoding="utf-8")
         typer.secho(f" - Создан .ai-ignore", fg=COLORS.INFO)

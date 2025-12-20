@@ -13,6 +13,9 @@ PROMPT_FILE = AI_CONTEXT_DIR / "system-prompt.txt"
 DIALOG_FILE = AI_CONTEXT_DIR / "dialog.json"
 STOP_FLAG_FILE = AI_CONTEXT_DIR / ".watchdog.pid"
 
+# AI_MODEL = "deepseek-coder:6.7b-instruct"
+AI_MODEL = "qwen3:14b"
+MAX_TOKENS = 4096
 
 DEFAULT_PROMPT = """
 Ты — эксперт-разработчик, помогающий пользователю понять и улучшить его кодовую базу.
