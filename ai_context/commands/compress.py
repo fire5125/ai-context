@@ -107,6 +107,16 @@ def generate_file_summary(filepath: str, content: str) -> str:
 
 
 def extract_summaries_from_db() -> List[str]:
+    """
+    Читает все проиндексированные файлы из SQLite-базы (.ai-context/context.db)
+    и генерирует для каждого краткое резюме (сигнатуры функций, классов, докстринги).
+
+    Возвращает список строк — по одной записи на файл в формате:
+        Файл: <путь> | <N> строк
+          • <сигнатура> → <описание>
+
+    Если база не найдена — завершает выполнение с ошибкой.
+    """
     if not CONTEXT_DB.exists():
         typer.secho(" - База данных контекста не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -128,6 +138,19 @@ def extract_summaries_from_db() -> List[str]:
 
 
 def compress(output_path: Path = Path("test-resume.txt")):
+    """
+    Команда: ai-context compress [--output ./test-resume.txt]
+    Генерирует сжатое текстовое представление контекста проекта
+    и сохраняет его в указанный файл (по умолчанию — test-resume.txt).
+
+    Использует данные из .ai-context/context.db.
+    Содержимое включает только сигнатуры и первые строки докстрингов,
+    без тел функций — для максимального сжатия без потери смысла.
+
+    Предназначено для отладки, анализа структуры проекта
+    и будущей интеграции с ИИ-чатом в режиме «лёгкого контекста».
+    """
+
     if not AI_CONTEXT_DIR.exists():
         typer.secho(" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)

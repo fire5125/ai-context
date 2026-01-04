@@ -4,7 +4,7 @@ import typer
 from .read_context import export_context_to_file
 from ai_context.source.settings import *
 from ai_context.source.messages import *
-from .index import index_to_text_and_db
+from .index import index
 
 
 def ensure_gitignore_ignores_ai_context():
@@ -88,9 +88,6 @@ def create_ai_context_ignore() -> None:
 
     try:
         ignore_text = """.gitignore
-.env
-.envrc
-.venv
 __pycache__/
 env/
 venv/
@@ -101,15 +98,21 @@ venv.bak/
 /.gigaide/
 .git/*
 .ai-context/
-*.log
 build/
 sdist/
 dist/
-*.egg
 MANIFEST
 pyproject.toml
+out.md
+*.log
 *.txt
 *.py~
+*.egg
+*.egg-info/
+*.py~
+.env
+.envrc
+.venv
         """
         AI_IGNORE.write_text(ignore_text, encoding="utf-8")
         typer.secho(f" - Создан .ai-ignore", fg=COLORS.INFO)
@@ -121,7 +124,7 @@ pyproject.toml
 
 
 def init() -> None:
-    """Инициализирует ai-context в текущей директории."""
+    """Команда: ai-context init - Инициализирует ai-context в текущей директории."""
 
     try:
         if AI_CONTEXT_DIR.exists():
@@ -143,7 +146,7 @@ def init() -> None:
 
         # Автоматическая индексация после init
         typer.secho(f" - Запуск автоматической индексации проекта...", fg=COLORS.INFO)
-        index_to_text_and_db()
+        index()
 
         # Экспортируем контекст в файл
         export_context_to_file(Path('./out.txt'))

@@ -44,6 +44,18 @@ def count_messages_tokens(messages: list, model: str = "gpt-3.5-turbo") -> int:
 
 
 def load_context_from_db() -> str:
+    """
+    Загружает актуальный контекст проекта из SQLite-базы (.ai-context/context.db) и формирует его в виде единого текстового документа.
+
+    Каждый файл в базе оборачивается в разделитель:
+        ### FILE: <путь_к_файлу> ###
+        <содержимое файла>
+        ============================================================
+
+    Возвращает объединённую строку, готовую к вставке в системный промт ИИ.
+    Если база не существует — завершает выполнение с ошибкой.
+    """
+
     if not CONTEXT_DB.exists():
         typer.secho(" - Контекст не найден. Выполните 'ai-context index'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -59,6 +71,12 @@ def load_context_from_db() -> str:
 
 
 def load_system_prompt() -> str:
+    """
+    Загружает содержимое системного промта из файла .ai-context/system-prompt.txt.
+
+    Используется как основа инструкции для ИИ перед добавлением контекста проекта.
+    Если файл отсутствует — завершает выполнение с ошибкой.
+    """
     if not PROMPT_FILE.exists():
         typer.secho(" - Промт не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -66,6 +84,15 @@ def load_system_prompt() -> str:
 
 
 def load_secrets():
+    """
+    Загружает настройки подключения к ИИ из .ai-context/secrets.json.
+
+    Возвращает кортеж:
+      - base_url (str): адрес OpenAI-совместимого API (например, Ollama),
+      - api_key (str): ключ аутентификации (для Ollama — обычно "ollama").
+
+    Если файл отсутствует — завершает выполнение с ошибкой.
+    """
     if not SECRETS_FILE.exists():
         typer.secho(" - secrets.json не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -74,11 +101,20 @@ def load_secrets():
 
 
 def save_dialog_history(messages: list):
+    """
+    Сохраняет историю диалога в .ai-context/dialog.json в формате JSON.
+
+    Принимает список сообщений в формате OpenAI Chat API:
+        [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+
+    Используется для сохранения состояния между сессиями чата.
+    """
     DIALOG_FILE.write_text(json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def chat():
-    """Команда: ai-context chat — трёхшаговый чат с ИИ."""
+    """Команда: ai-context chat — [ТЕСТ] трёхшаговый чат с ИИ."""
+
     if not AI_CONTEXT_DIR.exists():
         typer.secho(" - Выполните 'ai-context init' сначала.", fg=COLORS.ERROR)
         raise typer.Exit(1)

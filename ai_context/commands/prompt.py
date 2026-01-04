@@ -6,7 +6,7 @@ from ai_context.source.messages import *
 
 
 def edit_prompt():
-    """Открывает system-prompt.txt для редактирования."""
+    """Команда: ai-context edit_prompt - Открывает system-prompt.txt для редактирования."""
 
     if not PROMPT_FILE.exists():
         typer.secho(f" - system-prompt.txt не найден. "

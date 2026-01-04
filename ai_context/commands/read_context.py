@@ -7,6 +7,7 @@ from ai_context.source.messages import COLORS
 
 def export_context_to_file(output_path: Path):
     """Экспортирует контекст из SQLite БД в текстовый файл в формате context.txt."""
+
     if not AI_CONTEXT_DIR.exists():
         typer.secho(f" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -39,5 +40,6 @@ def export_context_to_file(output_path: Path):
 
 
 def read(output_file: str = typer.Argument(default='./out.txt', help="Путь к выходному текстовому файлу")):
-    """Команда: ai-context read-context ./output.txt — воссоздаёт context.txt из SQLite БД."""
+    """Команда: ai-context read ./output.txt — воссоздаёт в output.txt контекст из SQLite БД."""
+
     export_context_to_file(Path(output_file))

@@ -5,6 +5,7 @@ from pathspec import PathSpec
 from ai_context.source.messages import COLORS
 from ai_context.source.settings import CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
 
+
 def load_ai_ignore() -> PathSpec:
     """Загружает правила игнорирования из .ai-context/.ai-ignore."""
     if AI_IGNORE.exists():
@@ -16,7 +17,9 @@ def load_ai_ignore() -> PathSpec:
         typer.secho(f" - Создан .ai-context/.ai-ignore", fg=typer.colors.BLUE)
         return PathSpec.from_lines('gitwildmatch', [])
 
+
 def is_binary(path: Path) -> bool:
+    """Проверка файла (он бинарный?)"""
     try:
         with open(path, 'rb') as f:
             chunk = f.read(1024)
@@ -24,28 +27,33 @@ def is_binary(path: Path) -> bool:
     except Exception:
         return True
 
+
 def should_index(path: Path, ai_ignore: PathSpec) -> bool:
+    """Определяет, должен ли файл быть включён в контекст по правилам .ai-ignore, размеру и бинарности."""
     if not path.is_file():
         return False
+
     try:
         rel_path = path.relative_to(Path.cwd())
+
     except ValueError:
         return False
+
     if ai_ignore.match_file(str(rel_path)):
         return False
+
     if is_binary(path):
         return False
+
     if path.stat().st_size > 1_000_000:
         return False
+
     return True
 
-# def write_to_text_file(context_lines):
-#     CONTEXT_FILE.write_text("".join(context_lines), encoding="utf-8")
-#     typer.secho(f" - Контекст сохранён в {CONTEXT_FILE}", fg=COLORS.SUCCESS)
-#     typer.secho(f" - Найдено ~{len(context_lines) // 4} файлов", fg=COLORS.INFO)
 
 def write_to_sqlite(indexed_files):
     """Сохраняет список файлов (rel_path, content) в SQLite БД."""
+
     CONTEXT_DB.parent.mkdir(exist_ok=True)  # убедимся, что .ai-context существует
     conn = sqlite3.connect(CONTEXT_DB)
     cur = conn.cursor()
@@ -66,7 +74,10 @@ def write_to_sqlite(indexed_files):
     conn.close()
     typer.secho(f" - Контекст сохранён в {CONTEXT_DB}", fg=COLORS.SUCCESS)
 
-def index_to_text_and_db():
+
+def index():
+    """Команда: ai-context index - Метод индексации файлов проекта"""
+
     if not AI_CONTEXT_DIR.exists():
         typer.secho(f" - При инициализации ai-context у нас ошибка!", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -91,10 +102,4 @@ def index_to_text_and_db():
             except Exception as e:
                 typer.secho(f"- Не удалось прочитать {rel_path}: {e}", fg=COLORS.WARNING)
 
-    # Сохраняем в оба формата
-    # write_to_text_file(context_lines)
     write_to_sqlite(indexed_files)
-
-def index():
-    """Команда: ai-context index"""
-    index_to_text_and_db()

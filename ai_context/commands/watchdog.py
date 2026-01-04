@@ -184,10 +184,8 @@ def stop_daemon():
             STOP_FLAG_FILE.unlink()
 
 
-def watchdog(
-        stop: bool = typer.Option(False, "--stop", "-s", help="Остановить демон"),
-):
-    """Команда: ai-context watchdog [--stop]"""
+def watchdog(stop: bool = typer.Option(False, "--stop", "-s", help="Остановить демон"),):
+    """Команда: ai-context watchdog [--stop|-s] - Запуск службы (демона) для отслеживания файлов и обновления контекста"""
     if stop:
         stop_daemon()
         return
