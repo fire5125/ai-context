@@ -93,6 +93,7 @@ def main():
     print(f"[Пользователь]\n{USER_MESSAGE}\n")
     print(">>> Ответ модели:\n")
 
+    # noinspection PyTypeChecker
     response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
@@ -109,6 +110,7 @@ def main():
             full_answer += content
             print(content, end="", flush=True)
         print("\n")
+
     else:
         full_answer = response.choices[0].message.content
         print(full_answer)

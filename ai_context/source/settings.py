@@ -15,7 +15,7 @@ STOP_FLAG_FILE = AI_CONTEXT_DIR / ".watchdog.pid"
 
 # AI_MODEL = "deepseek-coder:6.7b-instruct"
 AI_MODEL = "qwen3:14b"
-MAX_TOKENS = 4096
+MAX_TOKENS = 32768
 
 DEFAULT_PROMPT = """
 Ты — эксперт-разработчик, помогающий пользователю понять и улучшить его кодовую базу.
