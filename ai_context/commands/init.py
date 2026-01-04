@@ -125,30 +125,24 @@ out.md
 
 def init() -> None:
     """Команда: ai-context init - Инициализирует ai-context в текущей директории."""
-
     try:
         if AI_CONTEXT_DIR.exists():
             typer.secho(f" - Папка .ai-context уже существует", fg=COLORS.WARNING)
             raise typer.Exit(code=1)
 
-        # Создаём папку
         AI_CONTEXT_DIR.mkdir()
         typer.secho(f" - Создана папка .ai-context", fg=COLORS.SUCCESS)
 
-        # Добавляем в .gitignore
         ensure_gitignore_ignores_ai_context()
-
-        # Создаём файлы
         create_secrets_file()
         create_dialog_file()
         create_prompt_file()
         create_ai_context_ignore()
 
-        # Автоматическая индексация после init
         typer.secho(f" - Запуск автоматической индексации проекта...", fg=COLORS.INFO)
-        index()
+        index()  # ← внутри index() уже создаются и контекст, и резюме в БД
 
-        # Экспортируем контекст в файл
+        # Экспортируем полный контекст (НЕ резюме!)
         export_context_to_file(Path('./out.txt'))
 
         typer.secho(f" - ai-context успешно инициализирован!", fg=COLORS.SUCCESS)
@@ -157,4 +151,5 @@ def init() -> None:
             typer.echo(line)
 
     except Exception as err:
-        typer.secho(f" - При инициализации ai-context у нас ошибка!\n{err.__str__()}", fg=COLORS.ERROR)
+        typer.secho(f" - При инициализации ai-context у нас ошибка!\n{err}", fg=COLORS.ERROR)
+        raise

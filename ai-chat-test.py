@@ -9,7 +9,8 @@ from openai import OpenAI
 # === 1. НАСТРОЙКИ ПОДКЛЮЧЕНИЯ ===
 BASE_URL = "http://localhost:11434/v1"
 API_KEY = "ollama"
-MODEL = "deepseek-coder:6.7b-instruct"
+# MODEL = "deepseek-coder:6.7b-instruct"
+MODEL = "qwen3:14b"
 
 # === 2. СОДЕРЖИМОЕ ЗАПРОСА ===
 SYSTEM_PROMPT = """
@@ -25,7 +26,10 @@ SYSTEM_PROMPT = """
 # # ai-context
 # Идея: Создать локальный CLI-инструмент для автоматического сбора контекста кодовой базы и взаимодействия с ИИ-моделью в контексте проекта.
 # """
-PROJECT_CONTEXT = open("out.txt", "r", encoding="utf-8").read()
+
+# context_filename = "out.txt"
+context_filename = "test-resume.txt"
+PROJECT_CONTEXT = open(context_filename, "r", encoding="utf-8").read()
 
 USER_MESSAGE = "Привет! Выше, в блоке \"=== КОНТЕКСТ ===\" написан код, который я написал. Помоги мне его улучшить."
 

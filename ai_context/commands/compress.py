@@ -2,39 +2,29 @@
 import typer
 import sqlite3
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 import ast
-
 from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
 from ai_context.source.messages import COLORS
 
 
 def extract_python_signatures(content: str) -> List[str]:
-    """
-    Извлекает сигнатуры классов, функций и методов из Python-файла.
-    Включает:
-      - имя,
-      - аргументы,
-      - аннотации возврата (если есть),
-      - докстринг (если есть, только первую строку).
-    """
+    """Извлекает сигнатуры классов, функций и методов из Python-файла."""
+
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return ["[Ошибка синтаксиса Python — файл пропущен]"]
-
     signatures = []
 
-    def _get_docstring(node) -> Optional[str]:
+    def _get_docstring(node):
         if ast.get_docstring(node):
             doc = ast.get_docstring(node).strip()
-            # Берём только первую строку докстринга
             return doc.split("\n")[0].rstrip(".")
         return None
 
     def _format_args(args) -> str:
         parts = []
-        # positional + keyword-only
         all_args = args.posonlyargs + args.args + args.kwonlyargs
         for a in all_args:
             if a.annotation:
@@ -54,30 +44,19 @@ def extract_python_signatures(content: str) -> List[str]:
             signatures.append(f"{sig}  →  {doc or 'нет описания'}")
             for item in node.body:
                 _visit(item, prefix=f"{node.name}.")
-
         elif isinstance(node, ast.FunctionDef):
             args_str = _format_args(node.args)
-            return_annot = ""
-            if node.returns:
-                return_annot = f" → {ast.unparse(node.returns)}"
+            return_annot = f" → {ast.unparse(node.returns)}" if node.returns else ""
             sig = f"def {prefix}{node.name}({args_str}){return_annot}"
             doc = _get_docstring(node)
             signatures.append(f"{sig}  →  {doc or 'нет описания'}")
-
         elif isinstance(node, ast.AsyncFunctionDef):
             args_str = _format_args(node.args)
-            return_annot = ""
-            if node.returns:
-                return_annot = f" → {ast.unparse(node.returns)}"
+            return_annot = f" → {ast.unparse(node.returns)}" if node.returns else ""
             sig = f"async def {prefix}{node.name}({args_str}){return_annot}"
             doc = _get_docstring(node)
             signatures.append(f"{sig}  →  {doc or 'нет описания'}")
 
-    for node in ast.walk(tree):
-        # Только топ-уровень
-        if hasattr(node, 'lineno') and node.lineno == 1:
-            continue
-    # Перебираем только прямые потомки модуля
     for node in tree.body:
         _visit(node)
 
@@ -85,48 +64,32 @@ def extract_python_signatures(content: str) -> List[str]:
 
 
 def generate_file_summary(filepath: str, content: str) -> str:
-    """
-    Генерирует резюме файла:
-      - Для .py → извлекает сигнатуры
-      - Для других → заглушка (можно расширить)
-    """
+    """Генерирует резюме файла."""
+
     path = Path(filepath)
     total_lines = len(content.splitlines())
-
     if path.suffix == ".py":
         sigs = extract_python_signatures(content)
-        summary = "\n".join(f"  • {s}" for s in sigs[:20])  # лимит на 20 сигнатур
+        summary = "\n".join(f"  • {s}" for s in sigs[:20])
     else:
-        # Позже можно добавить обработку .ts, .js, .go и т.д.
         summary = "  → Язык не поддерживается для сигнатур. Используется первый непустой фрагмент."
         lines = [l.strip() for l in content.splitlines() if l.strip()]
         if lines:
-            summary += f"\n  • {lines[0][:100]}..."
-
+            summary += f"\n• {lines[0][:100]}..."
     return f"Файл: {filepath} | {total_lines} строк\n{summary}\n"
 
 
 def extract_summaries_from_db() -> List[str]:
-    """
-    Читает все проиндексированные файлы из SQLite-базы (.ai-context/context.db)
-    и генерирует для каждого краткое резюме (сигнатуры функций, классов, докстринги).
+    """Читает все проиндексированные файлы и генерирует резюме (только для index.py)."""
 
-    Возвращает список строк — по одной записи на файл в формате:
-        Файл: <путь> | <N> строк
-          • <сигнатура> → <описание>
-
-    Если база не найдена — завершает выполнение с ошибкой.
-    """
     if not CONTEXT_DB.exists():
         typer.secho(" - База данных контекста не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
-
     conn = sqlite3.connect(CONTEXT_DB)
     cur = conn.cursor()
     cur.execute("SELECT filepath, content FROM files ORDER BY filepath")
     rows: List[Tuple[str, str]] = cur.fetchall()
     conn.close()
-
     summaries = []
     for filepath, content in rows:
         try:
@@ -137,32 +100,34 @@ def extract_summaries_from_db() -> List[str]:
     return summaries
 
 
-def compress(output_path: Path = Path("test-resume.txt")):
+def load_summary_from_db() -> str:
+    """Загружает резюме из кэша project_summary."""
+
+    if not CONTEXT_DB.exists():
+        typer.secho(" - База данных не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        raise typer.Exit(1)
+    conn = sqlite3.connect(CONTEXT_DB)
+    cur = conn.cursor()
+    cur.execute("SELECT summary_text FROM project_summary WHERE id = 1")
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        typer.secho(" - Резюме не найдено в БД. Выполните 'ai-context index'.", fg=COLORS.WARNING)
+        raise typer.Exit(1)
+    return row[0]
+
+
+def compress(output_path: Path = Path("resume.txt")):
     """
-    Команда: ai-context compress [--output ./test-resume.txt]
-    Генерирует сжатое текстовое представление контекста проекта
-    и сохраняет его в указанный файл (по умолчанию — test-resume.txt).
-
-    Использует данные из .ai-context/context.db.
-    Содержимое включает только сигнатуры и первые строки докстрингов,
-    без тел функций — для максимального сжатия без потери смысла.
-
-    Предназначено для отладки, анализа структуры проекта
-    и будущей интеграции с ИИ-чатом в режиме «лёгкого контекста».
+    Команда: ai-context compress [--output ./resume.txt]
+    Экспортирует **уже сгенерированное** резюме проекта из БД в файл.
+    Не перегенерирует! Использует кэш из таблицы project_summary.
     """
 
     if not AI_CONTEXT_DIR.exists():
         typer.secho(" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
 
-    typer.secho(" - Генерация резюме по сигнатурам...", fg=COLORS.INFO)
-    summaries = extract_summaries_from_db()
-
-    header = (
-        "РЕЗЮМЕ КОНТЕКСТА ПРОЕКТА (только сигнатуры и докстринги)\n"
-        + "=" * 80 + "\n\n"
-    )
-    output_path.write_text(header + "\n".join(summaries) + "\n", encoding="utf-8")
-
-    typer.secho(f" - Резюме сохранено в {output_path.absolute()}", fg=COLORS.SUCCESS)
-    typer.secho(f" - Обработано файлов: {len(summaries)}", fg=COLORS.INFO)
+    summary_text = load_summary_from_db()
+    output_path.write_text(summary_text, encoding="utf-8")
+    typer.secho(f" - Резюме экспортировано в {output_path.absolute()}", fg=COLORS.SUCCESS)
