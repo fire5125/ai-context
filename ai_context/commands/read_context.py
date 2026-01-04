@@ -1,8 +1,8 @@
 import sqlite3
 import typer
 from pathlib import Path
-from .source.settings import CONTEXT_DB, AI_CONTEXT_DIR
-from .source.messages import COLORS
+from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
+from ai_context.source.messages import COLORS
 
 
 def export_context_to_file(output_path: Path):

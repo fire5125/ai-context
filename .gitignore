@@ -210,3 +210,4 @@ __marimo__/
 
 # Ignore ai-context data
 .ai-context/
+out.*

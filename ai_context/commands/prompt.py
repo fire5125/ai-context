@@ -1,8 +1,8 @@
 import typer
 import os
 import subprocess
-from .source.settings import PROMPT_FILE
-from .source.messages import *
+from ai_context.source.settings import PROMPT_FILE
+from ai_context.source.messages import *
 
 
 def edit_prompt():

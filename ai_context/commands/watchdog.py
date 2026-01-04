@@ -7,14 +7,13 @@ import subprocess
 from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
-from .source.settings import (
+from ai_context.source.settings import (
     AI_CONTEXT_DIR,
     CONTEXT_DB,
     CONTEXT_FILE,
     STOP_FLAG_FILE,
 )
-from .source.messages import COLORS
+from ai_context.source.messages import COLORS
 from .index import load_ai_ignore, should_index
 
 # Внутренний флаг — чтобы отличать внутренний запуск
@@ -22,13 +21,41 @@ _INTERNAL_FLAG = "--_run-watchdog"
 
 
 class ContextUpdater(FileSystemEventHandler):
+    """
+    Обработчик изменений файловой системы для автоматического обновления контекста проекта.
+
+    Следит за событиями создания, изменения и удаления файлов в рабочей директории.
+    При изменении файла:
+      - проверяет, должен ли он входить в контекст (по правилам .ai-ignore, размеру, бинарности),
+      - обновляет или удаляет запись в SQLite-базе context.db,
+      - повторно генерирует текстовый файл context.txt для совместимости с отладочными инструментами.
+
+    Игнорирует все изменения внутри папки .ai-context/, чтобы избежать рекурсивных событий.
+    """
+
     def __init__(self):
         self.ai_ignore = load_ai_ignore()
         typer.secho(" - Наблюдение за изменениями запущено...", fg=COLORS.INFO)
 
-    def on_any_event(self, event):
+    def on_any_event(self, event) -> None:
+        """
+        Обрабатывает все файловые события (создание, изменение, удаление) в рабочей директории.
+
+        Метод:
+          - игнорирует события внутри папки `.ai-context/`,
+          - определяет относительный путь файла относительно корня проекта,
+          - при удалении — удаляет запись из SQLite-базы,
+          - при создании/изменении — проверяет, должен ли файл входить в контекст
+            (по `.ai-ignore`, размеру, бинарности),
+            → если да — обновляет запись в БД,
+            → если нет — удаляет его из контекста (на случай, если он был ранее добавлен),
+          - после любого изменения перезаписывает `context.txt` для совместимости с отладочными инструментами.
+
+        Поддерживаемые типы событий: 'created', 'modified', 'deleted'.
+        """
         if event.is_directory:
             return
+
         if event.event_type not in ("created", "modified", "deleted"):
             return
 
@@ -43,7 +70,7 @@ class ContextUpdater(FileSystemEventHandler):
         if rel_path_str.startswith(".ai-context" + os.sep) or rel_path_str == ".ai-context":
             return
 
-        # ✅ Выводим файл, который изменился
+        # Выводим файл, который изменился
         typer.secho(f" - Событие: {event.event_type} → {rel_path}", fg=COLORS.DEBUG)
 
         conn = sqlite3.connect(CONTEXT_DB)
@@ -72,6 +99,18 @@ class ContextUpdater(FileSystemEventHandler):
         self.export_context_to_file()
 
     def export_context_to_file(self):
+        """
+        Экспортирует текущий контекст из SQLite-базы в текстовый файл context.txt.
+
+        Собирает содержимое всех проиндексированных файлов из таблицы `files`,
+        объединяет их в единый документ с разделителями вида:
+            === file: <путь> ===
+            <содержимое>
+        и записывает результат в `.ai-context/context.txt`.
+
+        Используется для отладки, внешних инструментов или резервного просмотра контекста.
+        """
+
         conn = sqlite3.connect(CONTEXT_DB)
         cur = conn.cursor()
         cur.execute("SELECT filepath, content FROM files ORDER BY filepath")
@@ -89,6 +128,7 @@ class ContextUpdater(FileSystemEventHandler):
 
 def start_observer():
     """Запускает наблюдатель в отдельном терминале."""
+
     if not AI_CONTEXT_DIR.exists():
         typer.secho(" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)

@@ -2,9 +2,8 @@ import json
 import sqlite3
 import tiktoken
 import typer
-from pathlib import Path
 from openai import OpenAI
-from .source.settings import (
+from ai_context.source.settings import (
     AI_CONTEXT_DIR,
     CONTEXT_DB,
     PROMPT_FILE,
@@ -12,7 +11,7 @@ from .source.settings import (
     DIALOG_FILE,
     MAX_TOKENS, AI_MODEL,
 )
-from .source.messages import COLORS
+from ai_context.source.messages import COLORS
 
 
 def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
@@ -58,11 +57,13 @@ def load_context_from_db() -> str:
         parts.append(f"### FILE: {filepath} ###\n{content}\n" + "=" * 60)
     return "\n".join(parts)
 
+
 def load_system_prompt() -> str:
     if not PROMPT_FILE.exists():
         typer.secho(" - Промт не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
     return PROMPT_FILE.read_text(encoding="utf-8").strip()
+
 
 def load_secrets():
     if not SECRETS_FILE.exists():
@@ -71,8 +72,10 @@ def load_secrets():
     data = json.loads(SECRETS_FILE.read_text(encoding="utf-8"))
     return data["ollama_base_url"], data.get("openai_api_key", "ollama")
 
+
 def save_dialog_history(messages: list):
     DIALOG_FILE.write_text(json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 def chat():
     """Команда: ai-context chat — трёхшаговый чат с ИИ."""
@@ -91,6 +94,8 @@ def chat():
     # === ШАГ 1: Установка роли ===
     typer.secho("\n[Шаг 1] Установка роли ИИ...", fg=COLORS.INFO)
     role_message = {"role": "user", "content": system_prompt + "\nПодтверди, что все понятно"}
+
+    # noinspection PyTypeChecker
     response1 = client.chat.completions.create(
         model=AI_MODEL,
         messages=[role_message],
@@ -104,6 +109,7 @@ def chat():
     typer.secho("\n[Шаг 2] Передача контекста проекта...", fg=COLORS.INFO)
     context_message = {"role": "user",
                        "content": f"Вот контекст проекта:\n\n{context}\n\nДля подтверждения перечисли все файлы проекта"}
+    # noinspection PyTypeChecker
     response2 = client.chat.completions.create(
         # model="deepseek-coder:6.7b-instruct",
         model=AI_MODEL,
@@ -156,6 +162,7 @@ def chat():
             elif prompt_tokens + MAX_TOKENS > 30000:
                 typer.secho("Внимание: суммарное количество токенов превысит лимит модели.", fg=COLORS.WARNING)
 
+            # noinspection PyTypeChecker
             response = client.chat.completions.create(
                 model=AI_MODEL,
                 messages=messages,
@@ -179,3 +186,4 @@ def chat():
 
         except Exception as e:
             typer.secho(f" - Ошибка: {e}", fg=COLORS.ERROR)
+

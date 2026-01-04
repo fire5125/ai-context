@@ -2,9 +2,10 @@ import json
 import typer
 
 from .read_context import export_context_to_file
-from .source.settings import *
-from .source.messages import *
+from ai_context.source.settings import *
+from ai_context.source.messages import *
 from .index import index_to_text_and_db
+
 
 def ensure_gitignore_ignores_ai_context():
     """Добавляет .ai-context/ в .gitignore, если ещё не добавлен."""
@@ -71,6 +72,7 @@ def create_dialog_file():
 
 def create_prompt_file():
     """Создает system-prompt.txt, если его нет."""
+
     try:
         PROMPT_FILE.write_text(DEFAULT_PROMPT, encoding="utf-8")
         typer.secho(f" - Создан prompt.txt", fg=COLORS.INFO)
@@ -81,8 +83,9 @@ def create_prompt_file():
         raise
 
 
-def create_ai_context_ignore():
-    """Создает system-prompt.txt, если его нет."""
+def create_ai_context_ignore() -> None:
+    """Создает .ai-ignore, если его нет."""
+
     try:
         ignore_text = """.gitignore
 .env
@@ -117,7 +120,7 @@ pyproject.toml
         raise
 
 
-def init():
+def init() -> None:
     """Инициализирует ai-context в текущей директории."""
 
     try:
