@@ -86,7 +86,6 @@ class Chat:
         total_tokens = 0
         selected_messages: List[dict] = []
 
-        # Инвертируем историю, чтобы начать с самых свежих сообщений
         for msg in reversed(self.history):
             msg_tokens = msg.tokens or self.count_tokens(f"{msg.role}: {msg.response}", AI_MODEL)
             if total_tokens + msg_tokens > self.token_size:
@@ -95,6 +94,97 @@ class Chat:
             total_tokens += msg_tokens
 
         return selected_messages
+
+    def _send_and_expect_confirmation(self, role: str, content: str, step_name: str) -> bool:
+        """
+        Внутренний вспомогательный метод для отправки сообщения и ожидания ответа 'Да' или 'Yes'.
+        """
+        user_message = Message(
+            index=self._next_index,
+            role=role,
+            response=content
+        )
+        user_message.tokens = self.count_tokens(
+            f"{user_message.role}: {user_message.response}", AI_MODEL
+        )
+        self.history.append(user_message)
+        self._next_index += 1
+
+        messages_to_send = self.prepare_history()
+        max_tokens_for_response = self.token_size - sum(
+            self.count_tokens(f"{m['role']}: {m['content']}", AI_MODEL) for m in messages_to_send
+        ) - 100
+
+        try:
+            # noinspection PyTypeChecker
+            response = self.client.chat.completions.create(
+                model=AI_MODEL,
+                messages=messages_to_send,
+                temperature=0.1,  # детерминированный ответ
+                max_tokens=max_tokens_for_response,
+                stream=False,
+            )
+            assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
+            assistant_response = (response.choices[0].message.content or "").strip()
+            if not assistant_reasoning:
+                assistant_reasoning = '...'
+            typer.secho(f"[{step_name}] Размышление модели: {repr(assistant_reasoning)}", fg=COLORS.DEBUG)
+            typer.secho(f"[{step_name}] Ответ модели: {repr(assistant_response)}", fg=COLORS.SUCCESS)
+
+            # Приводим к нижнему регистру и убираем пунктуацию
+            clean_response = assistant_response.lower().strip(" .,!?")
+            is_affirmative = clean_response in ("да", "yes", "ok", "okay", "понял", "got it")
+
+            assistant_message = Message(
+                index=self._next_index,
+                role="assistant",
+                response=assistant_response,
+                reasoning=getattr(response.choices[0].message, 'reasoning', None)
+            )
+            assistant_message.tokens = self.count_tokens(
+                f"{assistant_message.role}: {assistant_message.response}", AI_MODEL
+            )
+            self.history.append(assistant_message)
+            self._next_index += 1
+
+            return is_affirmative
+
+        except Exception as e:
+            typer.secho(f"[{step_name}] Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
+            raise
+
+    def step_1_send_prompt(self) -> bool:
+        """Шаг 1: отправка системного промпта. Ожидается подтверждение «Да»."""
+        prompt = self.load_system_prompt()
+        return self._send_and_expect_confirmation(
+            role="system",
+            content=f"Системный промпт:\n\n{prompt}\n\n"
+                    f"Ты все точно понял?"
+                    f"Дай ответ только \"Да\" или \"Нет\"",
+            step_name="STEP 1"
+        )
+
+    def step_2_send_summary(self) -> bool:
+        """Шаг 2: отправка резюме проекта. Ожидается подтверждение «Да»."""
+        summary = self.load_resume_from_db()
+        return self._send_and_expect_confirmation(
+            role="system",
+            content=f"Резюме проекта:\n\n{summary}\n\n"
+                    f"Ты понял структуру?"
+                    f"Дай ответ только \"Да\" или \"Нет\"",
+            step_name="STEP 2"
+        )
+
+    def step_3_send_context(self) -> bool:
+        """Шаг 3: отправка полного контекста. Ожидается подтверждение «Да»."""
+        context = self.load_context_from_db()
+        return self._send_and_expect_confirmation(
+            role="system",
+            content=f"Полный контекст проекта:\n\n{context}\n\n"
+                    f"Ты понял о чем проект?"
+                    f"Дай ответ \"Да\" или \"Нет\" и краткое описание проекта, как ты его понял",
+            step_name="STEP 3"
+        )
 
     def send_message(self, message_from_user: str) -> str:
         """
@@ -127,11 +217,12 @@ class Chat:
                 messages=messages_to_send,
                 temperature=0.2,
                 max_tokens=max_tokens_for_response,
-                stream=False,  # пока без streaming — можно добавить позже
+                stream=False,
             )
             assistant_response = response.choices[0].message.content or ""
-            assistant_reasoning = response.choices[0].message.reasoning or ""
-            typer.secho(f"[DEBUG] : {response.choices[0].message.reasoning}", fg=COLORS.DEBUG)
+            assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
+            if assistant_reasoning:
+                typer.secho(f"[DEBUG] : {assistant_reasoning}", fg=COLORS.DEBUG)
 
         except Exception as e:
             typer.secho(f"[ОШИБКА] : Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
@@ -153,7 +244,7 @@ class Chat:
 
     def save_dialog_history(self):
         """
-        Сохраняет историю в формате:
+        Сохраняет историю в формате JSON в DIALOG_FILE.
         """
         exportable = [
             {
@@ -164,17 +255,6 @@ class Chat:
             } for e in self.history
         ]
         DIALOG_FILE.write_text(json.dumps(exportable, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        # h = f"{}"
-        # h = '[' + ','.join([msg.model_dump_json() for msg in self.history]) + ']'
-        # print(h)
-        #
-        # test_file = AI_CONTEXT_DIR / "test_dialog.json"
-        #
-        # test_file.write_text(
-        #     data=json.loads(h),
-        #     encoding="utf-8"
-        # )
 
 
 def load_secrets():
@@ -194,7 +274,26 @@ def chat():
     base_url, api_key = load_secrets()
     chat_instance = Chat(base_url=base_url, api_key=api_key, token_size=MAX_TOKENS)
 
-    typer.secho("[SYSTEM] : Готов к диалогу! Введите 'quit' или 'Выход' для завершения.", fg=COLORS.WARNING)
+    typer.secho("[SYSTEM] : Начинаю подготовку модели (3 шага)...", fg=COLORS.INFO)
+
+    # Шаг 1: системный промпт
+    typer.secho("[SYSTEM] : Шаг 1 — отправка системного промпта...", fg=COLORS.INFO)
+    if not chat_instance.step_1_send_prompt():
+        typer.secho("[SYSTEM] : Модель не подтвердила понимание промпта.", fg=COLORS.WARNING)
+
+    # Шаг 2: резюме
+    typer.secho("[SYSTEM] : Шаг 2 — отправка резюме проекта...", fg=COLORS.INFO)
+    if not chat_instance.step_2_send_summary():
+        typer.secho("[SYSTEM] : Модель не подтвердила понимание резюме.", fg=COLORS.WARNING)
+
+    # Шаг 3: полный контекст
+    # typer.secho("[SYSTEM] : Шаг 3 — отправка полного контекста...", fg=COLORS.INFO)
+    # if not chat_instance.step_3_send_context():
+    #     typer.secho("[SYSTEM] : Модель не подтвердила понимание контекста.", fg=COLORS.WARNING)
+
+    chat_instance.save_dialog_history()
+    typer.secho("[SYSTEM] : Подготовка завершена. Готов к диалогу! Введите 'quit' или 'Выход' для завершения.",
+                fg=COLORS.WARNING)
 
     while True:
         try:
@@ -204,6 +303,7 @@ def chat():
 
         if user_input.strip().lower() in ("quit", "выход"):
             typer.secho("[SYSTEM] : До свидания!", fg=COLORS.INFO)
+            chat_instance.save_dialog_history()
             break
 
         try:
@@ -212,40 +312,5 @@ def chat():
             chat_instance.save_dialog_history()
 
         except Exception as e:
-            typer.secho(f"Нет[SYSTEM] : Ошибка в диалоге: {e}", fg=COLORS.ERROR)
+            typer.secho(f"[SYSTEM] : Ошибка в диалоге: {e}", fg=COLORS.ERROR)
             continue
-
-
-if __name__ == '__main__':
-    # base_url, api_key = load_secrets()
-    chat_instance = Chat(base_url='base_url', api_key='ollama', token_size=MAX_TOKENS)
-
-    chat_instance.history = [
-        Message(
-            index=1,
-            role="user",
-            response="test 1",
-        ),
-        Message(
-            index=2,
-            role="assistant",
-            response="test 2",
-        ),
-        Message(
-            index=3,
-            role="user",
-            response="test 3",
-        ),
-        Message(
-            index=4,
-            role="assistant",
-            response="test 4",
-        ),
-    ]
-
-    try:
-        chat_instance.save_dialog_history()
-
-    except Exception as e:
-        print(e)
-
