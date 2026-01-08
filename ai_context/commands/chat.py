@@ -31,6 +31,11 @@ class Message(BaseModel):
 
 class Chat:
     def __init__(self, base_url: str, api_key: str, token_size: int = MAX_TOKENS):
+        """Инициализирует клиент для взаимодействия с AI-сервисом.
+        base_url: Базовый URL API-сервиса.
+        api_key: API-ключ для аутентификации.
+        token_size: Максимальное количество токенов в истории сообщений.
+        """
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.token_size = token_size
         self.history: List[Message] = []
@@ -258,6 +263,9 @@ class Chat:
 
 
 def load_secrets():
+    """
+    Загружает секретные данные из файла secrets.json.
+    """
     if not SECRETS_FILE.exists():
         typer.secho(" - secrets.json не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
         raise typer.Exit(1)
@@ -287,9 +295,9 @@ def chat():
         typer.secho("[SYSTEM] : Модель не подтвердила понимание резюме.", fg=COLORS.WARNING)
 
     # Шаг 3: полный контекст
-    # typer.secho("[SYSTEM] : Шаг 3 — отправка полного контекста...", fg=COLORS.INFO)
-    # if not chat_instance.step_3_send_context():
-    #     typer.secho("[SYSTEM] : Модель не подтвердила понимание контекста.", fg=COLORS.WARNING)
+    typer.secho("[SYSTEM] : Шаг 3 — отправка полного контекста...", fg=COLORS.INFO)
+    if not chat_instance.step_3_send_context():
+        typer.secho("[SYSTEM] : Модель не подтвердила понимание контекста.", fg=COLORS.WARNING)
 
     chat_instance.save_dialog_history()
     typer.secho("[SYSTEM] : Подготовка завершена. Готов к диалогу! Введите 'quit' или 'Выход' для завершения.",
