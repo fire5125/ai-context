@@ -117,11 +117,9 @@ def load_summary_from_db() -> str:
     return row[0]
 
 
-def compress(output_path: Path = Path("resume.txt")):
+def compress(output_path: Path = Path("out_resume.txt")):
     """
-    Команда: ai-context compress [--output ./resume.txt]
-    Экспортирует **уже сгенерированное** резюме проекта из БД в файл.
-    Не перегенерирует! Использует кэш из таблицы project_summary.
+    Команда: ai-context compress [--output ./out_resume.txt] Экспортирует **уже сгенерированное** резюме проекта из БД в файл.
     """
 
     if not AI_CONTEXT_DIR.exists():

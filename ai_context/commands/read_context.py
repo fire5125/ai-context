@@ -39,7 +39,7 @@ def export_context_to_file(output_path: Path):
     typer.secho(f" - Контекст экспортирован в {output_path}", fg=COLORS.SUCCESS)
 
 
-def read(output_file: str = typer.Argument(default='./out.txt', help="Путь к выходному текстовому файлу")):
-    """Команда: ai-context read ./output.txt — воссоздаёт в output.txt контекст из SQLite БД."""
+def read(output_file: str = typer.Argument(default='./out_context.txt', help="Путь к выходному текстовому файлу")):
+    """Команда: ai-context read ./out_context.txt — воссоздаёт в out_context.txt контекст из SQLite БД."""
 
     export_context_to_file(Path(output_file))

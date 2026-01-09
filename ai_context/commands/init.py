@@ -1,10 +1,11 @@
 import json
 import typer
 
+from .compress import compress
 from .read_context import export_context_to_file
+from .index import index
 from ai_context.source.settings import *
 from ai_context.source.messages import *
-from .index import index
 
 
 def ensure_gitignore_ignores_ai_context():
@@ -49,7 +50,7 @@ def create_secrets_file():
             ),
             encoding="utf-8"
         )
-        typer.secho(f" - Создан secrets.json (не коммить в Git!)", fg=COLORS.INFO)
+        typer.secho(f" - Создан secrets.json (не коммить в Git!)", fg=COLORS.SUCCESS)
 
     except Exception as err:
         typer.secho(f" - При создании secrets.json у нас ошибка!\n"
@@ -62,7 +63,7 @@ def create_dialog_file():
 
     try:
         DIALOG_FILE.write_text("[]", encoding="utf-8")
-        typer.secho(f" - Создан dialog.json", fg=COLORS.INFO)
+        typer.secho(f" - Создан dialog.json", fg=COLORS.SUCCESS)
 
     except Exception as err:
         typer.secho(f" - При создании dialog.json у нас ошибка!\n"
@@ -75,7 +76,7 @@ def create_prompt_file():
 
     try:
         PROMPT_FILE.write_text(DEFAULT_PROMPT, encoding="utf-8")
-        typer.secho(f" - Создан prompt.txt", fg=COLORS.INFO)
+        typer.secho(f" - Создан prompt.txt", fg=COLORS.SUCCESS)
 
     except Exception as err:
         typer.secho(f" - При создании system-prompt.txt у нас ошибка!\n"
@@ -87,35 +88,9 @@ def create_ai_context_ignore() -> None:
     """Создает .ai-ignore, если его нет."""
 
     try:
-        ignore_text = """.gitignore
-__pycache__/
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-/.idea/
-/.gigaide/
-.git/*
-.ai-context/
-build/
-sdist/
-dist/
-MANIFEST
-pyproject.toml
-out.md
-*.log
-*.txt
-*.py~
-*.egg
-*.egg-info/
-*.py~
-.env
-.envrc
-.venv
-        """
+        ignore_text = INIT_AI_IGNORE_TEXT
         AI_IGNORE.write_text(ignore_text, encoding="utf-8")
-        typer.secho(f" - Создан .ai-ignore", fg=COLORS.INFO)
+        typer.secho(f" - Создан .ai-ignore", fg=COLORS.SUCCESS)
 
     except Exception as err:
         typer.secho(f" - При инициализации .ai-ignore у нас ошибка!\n"
@@ -123,7 +98,10 @@ out.md
         raise
 
 
-def init() -> None:
+def init(
+        no_context: bool = typer.Option(False, "--no_context", "-nc", help="Не создавать файл контекста"),
+        no_resume: bool = typer.Option(False, "--no_resume", "-nr", help="Не создавать файл резюие")
+) -> None:
     """Команда: ai-context init - Инициализирует ai-context в текущей директории."""
     try:
         if AI_CONTEXT_DIR.exists():
@@ -142,11 +120,15 @@ def init() -> None:
         typer.secho(f" - Запуск автоматической индексации проекта...", fg=COLORS.INFO)
         index()  # ← внутри index() уже создаются и контекст, и резюме в БД
 
-        # Экспортируем полный контекст (НЕ резюме!)
-        export_context_to_file(Path('./out.txt'))
+        # Экспортируем полный контекст
+        if not no_context:
+            export_context_to_file(Path('./out_context.txt'))
+
+        # Экспортируем резюме
+        if not no_resume:
+            compress(Path('./out_resume.txt'))
 
         typer.secho(f" - ai-context успешно инициализирован!", fg=COLORS.SUCCESS)
-        typer.secho(f" - Созданы файлы", fg=COLORS.SUCCESS)
         for line in INIT_FINISH_ALL_COMMANDS:
             typer.echo(line)
 
