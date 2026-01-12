@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-context"
-version = "0.0.1"
+version = "1.0.1"
 description = "CLI tool to provide AI with context from your codebase"
 authors = [{name = "Fire5125", email = "alexandr.krasnot@gmail.com"}]
 requires-python = ">=3.10"

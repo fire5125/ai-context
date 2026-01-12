@@ -1,5 +1,8 @@
 import json
+import re
+import os
 from pathlib import Path
+from openai import APIConnectionError
 from typing import List, Optional
 
 import sqlite3
@@ -19,6 +22,17 @@ from ai_context.source.settings import (
     MAX_TOKENS,
 )
 from ai_context.source.messages import COLORS
+
+
+def load_secrets():
+    """
+    Загружает секретные данные из файла secrets.json.
+    """
+    if not SECRETS_FILE.exists():
+        typer.secho(" - secrets.json не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        raise typer.Exit(1)
+    data = json.loads(SECRETS_FILE.read_text(encoding="utf-8"))
+    return data["ollama_base_url"], data.get("openai_api_key", "ollama")
 
 
 class Message(BaseModel):
@@ -100,21 +114,35 @@ class Chat:
 
         return selected_messages
 
-    def _send_and_expect_confirmation(self, role: str, content: str, step_name: str) -> bool:
+    def _send_and_expect_confirmation(self, system_content: str, step_name: str) -> bool:
         """
-        Внутренний вспомогательный метод для отправки сообщения и ожидания ответа 'Да' или 'Yes'.
+        Отправляет два сообщения:
+          1. system: контекст (промпт, резюме или полный контекст)
+          2. user: вопрос "Ты всё понял?"
+        Ждёт ответ от assistant и проверяет его.
         """
-        user_message = Message(
+        # 1. System message
+        system_msg = Message(
             index=self._next_index,
-            role=role,
-            response=content
+            role="system",
+            response=system_content
         )
-        user_message.tokens = self.count_tokens(
-            f"{user_message.role}: {user_message.response}", AI_MODEL
-        )
-        self.history.append(user_message)
+        system_msg.tokens = self.count_tokens(f"system: {system_msg.response}", AI_MODEL)
+        self.history.append(system_msg)
         self._next_index += 1
 
+        # 2. User message
+        user_question = "Ты всё понял? Ответь строго «Да» или «Нет»."
+        user_msg = Message(
+            index=self._next_index,
+            role="user",
+            response=user_question
+        )
+        user_msg.tokens = self.count_tokens(f"user: {user_msg.response}", AI_MODEL)
+        self.history.append(user_msg)
+        self._next_index += 1
+
+        # Подготавливаем историю для отправки
         messages_to_send = self.prepare_history()
         max_tokens_for_response = self.token_size - sum(
             self.count_tokens(f"{m['role']}: {m['content']}", AI_MODEL) for m in messages_to_send
@@ -125,92 +153,130 @@ class Chat:
             response = self.client.chat.completions.create(
                 model=AI_MODEL,
                 messages=messages_to_send,
-                temperature=0.1,  # детерминированный ответ
+                temperature=0.1,
                 max_tokens=max_tokens_for_response,
                 stream=False,
             )
-            assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
             assistant_response = (response.choices[0].message.content or "").strip()
-            if not assistant_reasoning:
-                assistant_reasoning = '...'
+            assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
+
             typer.secho(f"[{step_name}] Размышление модели: {repr(assistant_reasoning)}", fg=COLORS.DEBUG)
             typer.secho(f"[{step_name}] Ответ модели: {repr(assistant_response)}", fg=COLORS.SUCCESS)
 
-            # Приводим к нижнему регистру и убираем пунктуацию
             clean_response = assistant_response.lower().strip(" .,!?")
             is_affirmative = clean_response in ("да", "yes", "ok", "okay", "понял", "got it")
 
-            assistant_message = Message(
+            # 3. Assistant message
+            assistant_msg = Message(
                 index=self._next_index,
                 role="assistant",
                 response=assistant_response,
-                reasoning=getattr(response.choices[0].message, 'reasoning', None)
+                reasoning=assistant_reasoning
             )
-            assistant_message.tokens = self.count_tokens(
-                f"{assistant_message.role}: {assistant_message.response}", AI_MODEL
-            )
-            self.history.append(assistant_message)
+            assistant_msg.tokens = self.count_tokens(f"assistant: {assistant_msg.response}", AI_MODEL)
+            self.history.append(assistant_msg)
             self._next_index += 1
 
             return is_affirmative
+
+        except APIConnectionError:
+            typer.secho("[ОШИБКА] : Не удаётся подключиться к нейросети.", fg=COLORS.ERROR)
+            typer.secho("Проверьте, запущена ли локальная модель или доступен ли удалённый API.", fg=COLORS.ERROR)
+            raise  # или вернуть заглушку, например: return "[Ошибка подключения к ИИ]"
 
         except Exception as e:
             typer.secho(f"[{step_name}] Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
             raise
 
+    @staticmethod
+    def _extract_filenames_from_text(text: str) -> set[str]:
+        """
+        Извлекает потенциальные имена файлов из текста.
+        Ищет слова, содержащие точку и допустимое расширение.
+        """
+        # Простой паттерн: любая последовательность символов с точкой и буквами/цифрами после
+        candidates = re.findall(r'\b\w+\.\w{1,6}\b', text)
+        return set(candidates)
+
+    @staticmethod
+    def _fetch_file_contexts_by_names(filenames: set[str]) -> str:
+        """
+        По множеству имён файлов ищет все соответствующие записи в БД и возвращает их контекст.
+        """
+        if not CONTEXT_DB.exists():
+            return ""
+
+        conn = sqlite3.connect(CONTEXT_DB)
+        cur = conn.cursor()
+        placeholders = ','.join('?' * len(filenames))
+        query = f"SELECT filepath, content FROM files WHERE {' OR '.join([f'filepath LIKE ?' for _ in filenames])}"
+
+        # Строим шаблоны: %/filename.ext
+        patterns = [f"%/{name}" for name in filenames]
+        cur.execute(query, patterns)
+        rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            return ""
+
+        parts = []
+        for filepath, content in rows:
+            parts.append(f"### FILE: {filepath} ###\n{content}\n{'-' * 60}")
+        return "\n".join(parts)
+
     def step_1_send_prompt(self) -> bool:
-        """Шаг 1: отправка системного промпта. Ожидается подтверждение «Да»."""
         prompt = self.load_system_prompt()
         return self._send_and_expect_confirmation(
-            role="system",
-            content=f"Системный промпт:\n\n{prompt}\n\n"
-                    f"Ты все точно понял?"
-                    f"Дай ответ только \"Да\" или \"Нет\"",
+            system_content=f"Системный промпт:\n{prompt}",
             step_name="STEP 1"
         )
 
     def step_2_send_summary(self) -> bool:
-        """Шаг 2: отправка резюме проекта. Ожидается подтверждение «Да»."""
         summary = self.load_resume_from_db()
         return self._send_and_expect_confirmation(
-            role="system",
-            content=f"Резюме проекта:\n\n{summary}\n\n"
-                    f"Ты понял структуру?"
-                    f"Дай ответ только \"Да\" или \"Нет\"",
+            system_content=f"Резюме проекта:\n{summary}",
             step_name="STEP 2"
         )
 
     def step_3_send_context(self) -> bool:
-        """Шаг 3: отправка полного контекста. Ожидается подтверждение «Да»."""
         context = self.load_context_from_db()
         return self._send_and_expect_confirmation(
-            role="system",
-            content=f"Полный контекст проекта:\n\n{context}\n\n"
-                    f"Ты понял о чем проект?"
-                    f"Дай ответ \"Да\" или \"Нет\" и краткое описание проекта, как ты его понял",
+            system_content=f"Полный контекст проекта:\n{context}",
             step_name="STEP 3"
         )
 
     def send_message(self, message_from_user: str) -> str:
-        """
-        Отправляет сообщение от пользователя в ИИ, получает ответ и сохраняет в историю.
-        Возвращает ответ ИИ как строку.
-        """
+        # Шаг 0: поиск упомянутых файлов
+        mentioned_files = self._extract_filenames_from_text(message_from_user)
+        if mentioned_files:
+            file_context = self._fetch_file_contexts_by_names(mentioned_files)
+            if file_context:
+                # Вставляем system-сообщение с контекстом файлов
+                file_msg = Message(
+                    index=self._next_index,
+                    role="system",
+                    response=f"Контекст упомянутых файлов:\n{file_context}"
+                )
+                file_msg.tokens = self.count_tokens(f"system: {file_msg.response}", AI_MODEL)
+                self.history.append(file_msg)
+                self._next_index += 1
+
+        # Теперь само сообщение пользователя
         user_message = Message(
             index=self._next_index,
             role="user",
             response=message_from_user
         )
-        user_message.tokens = self.count_tokens(
-            f"{user_message.role}: {user_message.response}", AI_MODEL
-        )
+        user_message.tokens = self.count_tokens(f"user: {user_message.response}", AI_MODEL)
         self.history.append(user_message)
         self._next_index += 1
 
+        # Отправка
         messages_to_send = self.prepare_history()
         max_tokens_for_response = self.token_size - sum(
             self.count_tokens(f"{m['role']}: {m['content']}", AI_MODEL) for m in messages_to_send
-        ) - 100  # запас
+        ) - 100
 
         if max_tokens_for_response <= 50:
             typer.secho("[SYSTEM] : Контекст почти заполнен — ответ может быть усечён.", fg=COLORS.WARNING)
@@ -228,7 +294,6 @@ class Chat:
             assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
             if assistant_reasoning:
                 typer.secho(f"[DEBUG] : {assistant_reasoning}", fg=COLORS.DEBUG)
-
         except Exception as e:
             typer.secho(f"[ОШИБКА] : Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
             raise
@@ -239,9 +304,7 @@ class Chat:
             response=assistant_response,
             reasoning=assistant_reasoning
         )
-        assistant_message.tokens = self.count_tokens(
-            f"{assistant_message.role}: {assistant_message.response}", AI_MODEL
-        )
+        assistant_message.tokens = self.count_tokens(f"assistant: {assistant_message.response}", AI_MODEL)
         self.history.append(assistant_message)
         self._next_index += 1
 
@@ -260,17 +323,6 @@ class Chat:
             } for e in self.history
         ]
         DIALOG_FILE.write_text(json.dumps(exportable, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def load_secrets():
-    """
-    Загружает секретные данные из файла secrets.json.
-    """
-    if not SECRETS_FILE.exists():
-        typer.secho(" - secrets.json не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
-        raise typer.Exit(1)
-    data = json.loads(SECRETS_FILE.read_text(encoding="utf-8"))
-    return data["ollama_base_url"], data.get("openai_api_key", "ollama")
 
 
 def chat():
