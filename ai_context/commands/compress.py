@@ -1,11 +1,11 @@
-# ai_context/commands/compress.py
+import ast
 import typer
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple
-import ast
+from loguru import logger
+
 from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
-from ai_context.source.messages import COLORS
 
 
 def extract_python_signatures(content: str) -> List[str]:
@@ -83,7 +83,7 @@ def extract_summaries_from_db() -> List[str]:
     """Читает все проиндексированные файлы и генерирует резюме (только для index.py)."""
 
     if not CONTEXT_DB.exists():
-        typer.secho(" - База данных контекста не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        logger.error(" - База данных контекста не найдена. Выполните 'ai-context index'.")
         raise typer.Exit(1)
     conn = sqlite3.connect(CONTEXT_DB)
     cur = conn.cursor()
@@ -104,7 +104,7 @@ def load_summary_from_db() -> str:
     """Загружает резюме из кэша project_summary."""
 
     if not CONTEXT_DB.exists():
-        typer.secho(" - База данных не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        logger.error(" - База данных не найдена. Выполните 'ai-context index'.")
         raise typer.Exit(1)
     conn = sqlite3.connect(CONTEXT_DB)
     cur = conn.cursor()
@@ -112,7 +112,7 @@ def load_summary_from_db() -> str:
     row = cur.fetchone()
     conn.close()
     if not row:
-        typer.secho(" - Резюме не найдено в БД. Выполните 'ai-context index'.", fg=COLORS.WARNING)
+        logger.warning(" - Резюме не найдено в БД. Выполните 'ai-context index'.")
         raise typer.Exit(1)
     return row[0]
 
@@ -123,9 +123,9 @@ def compress(output_path: Path = Path("out_resume.txt")):
     """
 
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        logger.error(" - Папка .ai-context не найдена. Выполните 'ai-context init'.")
         raise typer.Exit(1)
 
     summary_text = load_summary_from_db()
     output_path.write_text(summary_text, encoding="utf-8")
-    typer.secho(f" - Резюме экспортировано в {output_path.absolute()}", fg=COLORS.SUCCESS)
+    logger.success(f" - Резюме экспортировано в {output_path.absolute()}")

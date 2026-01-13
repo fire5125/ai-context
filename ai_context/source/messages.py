@@ -1,16 +1,16 @@
 from typer import colors
 
 
-class COLORS:
-    SUCCESS = colors.GREEN
-    INFO = colors.WHITE
-    DEBUG = colors.BRIGHT_BLUE
-    WARNING = colors.YELLOW
-    ERROR = colors.BRIGHT_RED
+# class COLORS:
+#     SUCCESS = colors.GREEN
+#     INFO = colors.WHITE
+#     DEBUG = colors.BRIGHT_BLUE
+#     WARNING = colors.YELLOW
+#     ERROR = colors.BRIGHT_RED
 
 
 INIT_FINISH_ALL_COMMANDS = [
-    "\nДля дальнейшей работы используй следующие команды:",
+    "Для дальнейшей работы используй следующие команды:",
     " >>> ai-context edit-prompt - Открывает system-prompt.txt для редактирования (откроется в стандартном тесктовом редакторе)",
     " >>> ai-context index - Метод индексации файлов проекта. Вызывайте его для повтороной ручной индексации (не создает файл ./out_context.txt)",
     " >>> ai-context read ./output.txt — воссоздаёт в output.txt контекст из SQLite БД",

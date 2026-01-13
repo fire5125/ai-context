@@ -1,8 +1,9 @@
 import typer
 import sqlite3
+from loguru import logger
 from pathlib import Path
 from pathspec import PathSpec
-from ai_context.source.messages import COLORS
+
 from ai_context.source.settings import CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
 
 
@@ -15,7 +16,7 @@ def load_ai_ignore() -> PathSpec:
         return PathSpec.from_lines('gitwildmatch', lines)
     else:
         AI_IGNORE.write_text("# Add file/folder patterns to ignore (like .gitignore)\n", encoding="utf-8")
-        typer.secho(f" - Создан .ai-context/.ai-ignore", fg=typer.colors.BLUE)
+        logger.debug(f" - Создан .ai-context/.ai-ignore")
         return PathSpec.from_lines('gitwildmatch', [])
 
 
@@ -67,7 +68,7 @@ def write_to_sqlite(indexed_files):
     """, data)
     conn.commit()
     conn.close()
-    typer.secho(f" - Контекст сохранён в {CONTEXT_DB}", fg=COLORS.SUCCESS)
+    logger.success(f" - Контекст сохранён в {CONTEXT_DB}")
 
 
 def update_summary_cache():
@@ -77,7 +78,7 @@ def update_summary_cache():
     import sqlite3
     from ai_context.source.settings import CONTEXT_DB
 
-    typer.secho(" - Обновление кэша резюме...", fg=COLORS.INFO)
+    logger.info(" - Обновление кэша резюме...")
     summaries = extract_summaries_from_db()
     header = (
         "РЕЗЮМЕ КОНТЕКСТА ПРОЕКТА (только сигнатуры и докстринги)\n"
@@ -100,20 +101,20 @@ def update_summary_cache():
     """, (full_summary,))
     conn.commit()
     conn.close()
-    typer.secho(" - Резюме сохранено в БД", fg=COLORS.SUCCESS)
+    logger.success(" - Резюме сохранено в БД")
 
 
 def index():
     """Команда: ai-context index - Метод индексации файлов проекта"""
 
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(f" - При инициализации ai-context у нас ошибка!", fg=COLORS.ERROR)
+        logger.error(f" - При инициализации ai-context у нас ошибка!")
         raise typer.Exit(1)
 
     ai_ignore = load_ai_ignore()
     indexed_files = []
 
-    typer.secho(f" - Сканирование проекта...", fg=COLORS.INFO)
+    logger.info(f" - Сканирование проекта...")
     for path in Path.cwd().rglob("*"):
         if should_index(path, ai_ignore):
             rel_path = path.relative_to(Path.cwd())
@@ -121,7 +122,7 @@ def index():
                 content = path.read_text(encoding="utf-8", errors="replace")
                 indexed_files.append((rel_path, content))
             except Exception as e:
-                typer.secho(f"- Не удалось прочитать {rel_path}: {e}", fg=COLORS.WARNING)
+                logger.warning(f"- Не удалось прочитать {rel_path}: {e}")
 
     write_to_sqlite(indexed_files)
     update_summary_cache()

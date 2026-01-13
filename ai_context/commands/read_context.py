@@ -1,19 +1,20 @@
 import sqlite3
 import typer
+from loguru import logger
 from pathlib import Path
+
 from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
-from ai_context.source.messages import COLORS
 
 
 def export_context_to_file(output_path: Path):
     """Экспортирует контекст из SQLite БД в текстовый файл в формате context.txt."""
 
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(f" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        logger.error(f" - Папка .ai-context не найдена. Выполните 'ai-context init'.")
         raise typer.Exit(1)
 
     if not CONTEXT_DB.exists():
-        typer.secho(f" - База данных {CONTEXT_DB} не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        logger.error(f" - База данных {CONTEXT_DB} не найдена. Выполните 'ai-context index'.")
         raise typer.Exit(1)
 
     output_path = Path(output_path).resolve()
@@ -25,7 +26,7 @@ def export_context_to_file(output_path: Path):
     conn.close()
 
     if not rows:
-        typer.secho(f" - База данных пуста.", fg=COLORS.WARNING)
+        logger.warning(f" - База данных пуста.")
         output_path.write_text("", encoding="utf-8")
         return
 
@@ -36,7 +37,7 @@ def export_context_to_file(output_path: Path):
         lines.append("\n" + "="*60 + "\n")
 
     output_path.write_text("".join(lines), encoding="utf-8")
-    typer.secho(f" - Контекст экспортирован в {output_path}", fg=COLORS.SUCCESS)
+    logger.success(f" - Контекст экспортирован в {output_path}")
 
 
 def read(output_file: str = typer.Argument(default='./out_context.txt', help="Путь к выходному текстовому файлу")):

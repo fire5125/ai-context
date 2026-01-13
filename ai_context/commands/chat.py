@@ -1,13 +1,11 @@
-import json
 import re
-import os
-from pathlib import Path
-from openai import APIConnectionError
-from typing import List, Optional
-
+import json
+import typer
 import sqlite3
 import tiktoken
-import typer
+from loguru import logger
+from openai import APIConnectionError
+from typing import List, Optional
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -21,7 +19,6 @@ from ai_context.source.settings import (
     AI_MODEL,
     MAX_TOKENS,
 )
-from ai_context.source.messages import COLORS
 
 
 def load_secrets():
@@ -29,7 +26,7 @@ def load_secrets():
     Загружает секретные данные из файла secrets.json.
     """
     if not SECRETS_FILE.exists():
-        typer.secho(" - secrets.json не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        logger.error(" - secrets.json не найден. Выполните 'ai-context init'.")
         raise typer.Exit(1)
     data = json.loads(SECRETS_FILE.read_text(encoding="utf-8"))
     return data["ollama_base_url"], data.get("openai_api_key", "ollama")
@@ -72,7 +69,7 @@ class Chat:
     def load_context_from_db() -> str:
         """Загружает полный контекст проекта из SQLite-базы."""
         if not CONTEXT_DB.exists():
-            typer.secho(" - Контекст не найден. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+            logger.error(" - Контекст не найден. Выполните 'ai-context index'.")
             raise typer.Exit(1)
         conn = sqlite3.connect(CONTEXT_DB)
         cur = conn.cursor()
@@ -93,7 +90,7 @@ class Chat:
     def load_system_prompt() -> str:
         """Загружает системный промпт из файла."""
         if not PROMPT_FILE.exists():
-            typer.secho(" - Промт не найден. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+            logger.error(" - Промт не найден. Выполните 'ai-context init'.")
             raise typer.Exit(1)
         return PROMPT_FILE.read_text(encoding="utf-8").strip()
 
@@ -160,8 +157,8 @@ class Chat:
             assistant_response = (response.choices[0].message.content or "").strip()
             assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
 
-            typer.secho(f"[{step_name}] Размышление модели: {repr(assistant_reasoning)}", fg=COLORS.DEBUG)
-            typer.secho(f"[{step_name}] Ответ модели: {repr(assistant_response)}", fg=COLORS.SUCCESS)
+            logger.debug(f"[{step_name}] Размышление модели: {repr(assistant_reasoning)}")
+            logger.success(f"[{step_name}] Ответ модели: {repr(assistant_response)}")
 
             clean_response = assistant_response.lower().strip(" .,!?")
             is_affirmative = clean_response in ("да", "yes", "ok", "okay", "понял", "got it")
@@ -180,12 +177,12 @@ class Chat:
             return is_affirmative
 
         except APIConnectionError:
-            typer.secho("[ОШИБКА] : Не удаётся подключиться к нейросети.", fg=COLORS.ERROR)
-            typer.secho("Проверьте, запущена ли локальная модель или доступен ли удалённый API.", fg=COLORS.ERROR)
+            logger.error("[ОШИБКА] : Не удаётся подключиться к нейросети.")
+            logger.error("Проверьте, запущена ли локальная модель или доступен ли удалённый API.")
             raise  # или вернуть заглушку, например: return "[Ошибка подключения к ИИ]"
 
         except Exception as e:
-            typer.secho(f"[{step_name}] Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
+            logger.error(f"[{step_name}] Ошибка при вызове ИИ: {e}")
             raise
 
     @staticmethod
@@ -279,7 +276,7 @@ class Chat:
         ) - 100
 
         if max_tokens_for_response <= 50:
-            typer.secho("[SYSTEM] : Контекст почти заполнен — ответ может быть усечён.", fg=COLORS.WARNING)
+            logger.warning("[SYSTEM] : Контекст почти заполнен — ответ может быть усечён.")
 
         try:
             # noinspection PyTypeChecker
@@ -293,9 +290,9 @@ class Chat:
             assistant_response = response.choices[0].message.content or ""
             assistant_reasoning = getattr(response.choices[0].message, 'reasoning', None)
             if assistant_reasoning:
-                typer.secho(f"[DEBUG] : {assistant_reasoning}", fg=COLORS.DEBUG)
+                logger.debug(f"[DEBUG] : {assistant_reasoning}")
         except Exception as e:
-            typer.secho(f"[ОШИБКА] : Ошибка при вызове ИИ: {e}", fg=COLORS.ERROR)
+            logger.error(f"[ОШИБКА] : Ошибка при вызове ИИ: {e}")
             raise
 
         assistant_message = Message(
@@ -328,32 +325,31 @@ class Chat:
 def chat():
     """Команда: ai-context chat — простой интерактивный чат с ИИ."""
     if not AI_CONTEXT_DIR.exists():
-        typer.secho("[SYSTEM] : Выполните 'ai-context init' сначала.", fg=COLORS.ERROR)
+        logger.error("[SYSTEM] : Выполните 'ai-context init' сначала.")
         raise typer.Exit(1)
 
     base_url, api_key = load_secrets()
     chat_instance = Chat(base_url=base_url, api_key=api_key, token_size=MAX_TOKENS)
 
-    typer.secho("[SYSTEM] : Начинаю подготовку модели (3 шага)...", fg=COLORS.INFO)
+    logger.info("[SYSTEM] : Начинаю подготовку модели (3 шага)...")
 
     # Шаг 1: системный промпт
-    typer.secho("[SYSTEM] : Шаг 1 — отправка системного промпта...", fg=COLORS.INFO)
+    logger.info("[SYSTEM] : Шаг 1 — отправка системного промпта...")
     if not chat_instance.step_1_send_prompt():
-        typer.secho("[SYSTEM] : Модель не подтвердила понимание промпта.", fg=COLORS.WARNING)
+        logger.warning("[SYSTEM] : Модель не подтвердила понимание промпта.")
 
     # Шаг 2: резюме
-    typer.secho("[SYSTEM] : Шаг 2 — отправка резюме проекта...", fg=COLORS.INFO)
+    logger.info("[SYSTEM] : Шаг 2 — отправка резюме проекта...")
     if not chat_instance.step_2_send_summary():
-        typer.secho("[SYSTEM] : Модель не подтвердила понимание резюме.", fg=COLORS.WARNING)
+        logger.warning("[SYSTEM] : Модель не подтвердила понимание резюме.")
 
     # Шаг 3: полный контекст
-    typer.secho("[SYSTEM] : Шаг 3 — отправка полного контекста...", fg=COLORS.INFO)
+    logger.info("[SYSTEM] : Шаг 3 — отправка полного контекста...")
     if not chat_instance.step_3_send_context():
-        typer.secho("[SYSTEM] : Модель не подтвердила понимание контекста.", fg=COLORS.WARNING)
+        logger.warning("[SYSTEM] : Модель не подтвердила понимание контекста.")
 
     chat_instance.save_dialog_history()
-    typer.secho("[SYSTEM] : Подготовка завершена. Готов к диалогу! Введите 'quit' или 'Выход' для завершения.",
-                fg=COLORS.WARNING)
+    logger.warning("[SYSTEM] : Подготовка завершена. Готов к диалогу! Введите 'quit' или 'Выход' для завершения.")
 
     while True:
         try:
@@ -362,15 +358,15 @@ def chat():
             break
 
         if user_input.strip().lower() in ("quit", "выход"):
-            typer.secho("[SYSTEM] : До свидания!", fg=COLORS.INFO)
+            logger.info("[SYSTEM] : До свидания!")
             chat_instance.save_dialog_history()
             break
 
         try:
             response = chat_instance.send_message(user_input)
-            typer.secho(f"[AI agent] : {response}", fg=COLORS.SUCCESS)
+            logger.success(f"[AI agent] : {response}")
             chat_instance.save_dialog_history()
 
         except Exception as e:
-            typer.secho(f"[SYSTEM] : Ошибка в диалоге: {e}", fg=COLORS.ERROR)
+            logger.error(f"[SYSTEM] : Ошибка в диалоге: {e}")
             continue
