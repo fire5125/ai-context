@@ -3,7 +3,7 @@ import typer
 import subprocess
 from loguru import logger
 
-from ai_context.source.settings import PROMPT_FILE
+from src.ai_context.source.settings import PROMPT_FILE
 
 
 def edit_prompt():

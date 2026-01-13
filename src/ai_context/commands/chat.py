@@ -9,8 +9,8 @@ from typing import List, Optional
 from openai import OpenAI
 from pydantic import BaseModel
 
-from ai_context.commands.compress import load_summary_from_db
-from ai_context.source.settings import (
+from src.ai_context.commands.compress import load_summary_from_db
+from src.ai_context.source.settings import (
     AI_CONTEXT_DIR,
     CONTEXT_DB,
     PROMPT_FILE,

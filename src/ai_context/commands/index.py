@@ -4,7 +4,7 @@ from loguru import logger
 from pathlib import Path
 from pathspec import PathSpec
 
-from ai_context.source.settings import CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
+from src.ai_context.source.settings import CONTEXT_DB, AI_IGNORE, AI_CONTEXT_DIR
 
 
 def load_ai_ignore() -> PathSpec:
@@ -76,7 +76,7 @@ def update_summary_cache():
 
     from .compress import extract_summaries_from_db
     import sqlite3
-    from ai_context.source.settings import CONTEXT_DB
+    from src.ai_context.source.settings import CONTEXT_DB
 
     logger.info(" - Обновление кэша резюме...")
     summaries = extract_summaries_from_db()

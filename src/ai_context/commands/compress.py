@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 from loguru import logger
 
-from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
+from src.ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
 
 
 def extract_python_signatures(content: str) -> List[str]:

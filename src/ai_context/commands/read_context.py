@@ -3,7 +3,7 @@ import typer
 from loguru import logger
 from pathlib import Path
 
-from ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
+from src.ai_context.source.settings import CONTEXT_DB, AI_CONTEXT_DIR
 
 
 def export_context_to_file(output_path: Path):

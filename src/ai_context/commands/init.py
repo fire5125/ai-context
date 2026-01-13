@@ -2,11 +2,9 @@ import json
 import typer
 from loguru import logger
 
-from ai_context.commands.compress import compress
-from ai_context.commands.read_context import export_context_to_file
-from ai_context.commands.index import index
-from ai_context.source.settings import *
-from ai_context.source.messages import *
+from src.ai_context.commands.compress import compress
+from src.ai_context.commands.read_context import export_context_to_file
+from src.ai_context.commands.index import index
 
 
 def ensure_gitignore_ignores_ai_context():
