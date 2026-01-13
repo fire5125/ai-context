@@ -31,6 +31,7 @@ venv.bak/
 /.gigaide/
 .git/*
 .ai-context/
+ai-context/
 build/
 sdist/
 dist/
