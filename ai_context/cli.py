@@ -1,5 +1,17 @@
+import sys
+
 import typer
-from .commands import init, prompt, index, read_context, ai_watchdog, chat, compress
+from loguru import logger
+from ai_context.commands import init, prompt, index, read_context, ai_watchdog, chat, compress
+
+
+# Настройка loguru вместо typer.echo/secho
+logger.remove()
+logger.add(
+    sink=sys.stdout,
+    format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>',
+    level="DEBUG"
+)
 
 
 app = typer.Typer(

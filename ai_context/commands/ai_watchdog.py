@@ -5,19 +5,20 @@ import sqlite3
 import typer
 import subprocess
 from pathlib import Path
+from loguru import logger
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+from ai_context.commands.index import load_ai_ignore, should_index
 from ai_context.source.settings import (
     AI_CONTEXT_DIR,
     CONTEXT_DB,
     CONTEXT_FILE,
     STOP_FLAG_FILE,
 )
-from ai_context.source.messages import COLORS
-from .index import load_ai_ignore, should_index
 
 # Внутренний флаг — чтобы отличать внутренний запуск
-_INTERNAL_FLAG = "--_run-watchdog"
+_INTERNAL_FLAG = "--run"
 
 
 class ContextUpdater(FileSystemEventHandler):
@@ -35,7 +36,7 @@ class ContextUpdater(FileSystemEventHandler):
 
     def __init__(self):
         self.ai_ignore = load_ai_ignore()
-        typer.secho(" - Наблюдение за изменениями запущено...", fg=COLORS.INFO)
+        logger.info(" - Наблюдение за изменениями запущено...")
 
     def on_any_event(self, event) -> None:
         """
@@ -71,14 +72,14 @@ class ContextUpdater(FileSystemEventHandler):
             return
 
         # Выводим файл, который изменился
-        typer.secho(f" - Событие: {event.event_type} → {rel_path}", fg=COLORS.DEBUG)
+        logger.debug(f" - Событие: {event.event_type} → {rel_path}")
 
         conn = sqlite3.connect(CONTEXT_DB)
         cur = conn.cursor()
 
         if event.event_type == "deleted":
             cur.execute("DELETE FROM files WHERE filepath = ?", (rel_path_str,))
-            typer.secho(f" - Удалён из контекста: {rel_path}", fg=COLORS.WARNING)
+            logger.warning(f" - Удалён из контекста: {rel_path}")
         else:
             if should_index(src_path, self.ai_ignore):
                 try:
@@ -87,12 +88,12 @@ class ContextUpdater(FileSystemEventHandler):
                         "INSERT OR REPLACE INTO files (filepath, content) VALUES (?, ?)",
                         (rel_path_str, content),
                     )
-                    typer.secho(f" - Обновлён в контексте: {rel_path}", fg=COLORS.SUCCESS)
+                    logger.success(f" - Обновлён в контексте: {rel_path}")
                 except Exception as e:
-                    typer.secho(f" - Ошибка чтения {rel_path}: {e}", fg=COLORS.WARNING)
+                    logger.warning(f" - Ошибка чтения {rel_path}: {e}")
             else:
                 cur.execute("DELETE FROM files WHERE filepath = ?", (rel_path_str,))
-                typer.secho(f" - Исключён из контекста: {rel_path}", fg=COLORS.INFO)
+                logger.info(f" - Исключён из контекста: {rel_path}")
 
         conn.commit()
         conn.close()
@@ -131,31 +132,31 @@ def start_observer():
     """Запускает наблюдатель в отдельном терминале."""
 
     if not AI_CONTEXT_DIR.exists():
-        typer.secho(" - Папка .ai-context не найдена. Выполните 'ai-context init'.", fg=COLORS.ERROR)
+        logger.error(" - Папка .ai-context не найдена. Выполните 'ai-context init'.")
         raise typer.Exit(1)
 
     if not CONTEXT_DB.exists():
-        typer.secho(" - База данных не найдена. Выполните 'ai-context index'.", fg=COLORS.ERROR)
+        logger.error(" - База данных не найдена. Выполните 'ai-context index'.")
         raise typer.Exit(1)
 
     # Сохраняем PID
     pid = str(os.getpid())
     STOP_FLAG_FILE.write_text(pid, encoding="utf-8")
-    typer.secho(f" - PID процесса сохранён: {pid}", fg=COLORS.INFO)
+    logger.info(f" - PID процесса сохранён: {pid}")
 
     event_handler = ContextUpdater()
     observer = Observer()
     observer.schedule(event_handler, Path.cwd(), recursive=True)
     observer.start()
 
-    typer.secho(" - Режим наблюдения активен. Закройте окно для остановки.", fg=COLORS.SUCCESS)
+    logger.success(" - Режим наблюдения активен. Закройте окно для остановки.")
 
     try:
         while True:
             time.sleep(1)
 
     except KeyboardInterrupt:
-        typer.secho("\n - Получен сигнал завершения...", fg=COLORS.INFO)
+        logger.info("\n - Получен сигнал завершения...")
 
     finally:
         observer.stop()
@@ -167,7 +168,7 @@ def start_observer():
 def stop_daemon():
     """Останавливает демон."""
     if not STOP_FLAG_FILE.exists():
-        typer.secho(" - Демон не запущен.", fg=COLORS.INFO)
+        logger.info(" - Демон не запущен.")
         return
 
     try:
@@ -177,10 +178,10 @@ def stop_daemon():
         else:
             os.kill(pid, 9)
         STOP_FLAG_FILE.unlink()
-        typer.secho(" - Демон остановлен.", fg=COLORS.SUCCESS)
+        logger.success(" - Демон остановлен.")
 
     except Exception as e:
-        typer.secho(f" - Не удалось остановить демон: {e}", fg=COLORS.ERROR)
+        logger.error(f" - Не удалось остановить демон: {e}")
         if STOP_FLAG_FILE.exists():
             STOP_FLAG_FILE.unlink()
 
@@ -219,8 +220,8 @@ def watchdog(
                 stdout=None,  # чтобы видеть вывод
                 stderr=None,
             )
-        typer.secho(" - Watchdog запущен в новом окне терминала.", fg=typer.colors.GREEN)
+        logger.success(" - Watchdog запущен в новом окне терминала.")
 
     except Exception as e:
-        typer.secho(f" - Не удалось запустить watchdog: {e}", fg=typer.colors.RED)
+        logger.error(f" - Не удалось запустить watchdog: {e}")
         raise typer.Exit(1)
