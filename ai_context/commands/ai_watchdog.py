@@ -98,7 +98,8 @@ class ContextUpdater(FileSystemEventHandler):
         conn.close()
         self.export_context_to_file()
 
-    def export_context_to_file(self):
+    @staticmethod
+    def export_context_to_file():
         """
         Экспортирует текущий контекст из SQLite-базы в текстовый файл context.txt.
 
@@ -184,14 +185,17 @@ def stop_daemon():
             STOP_FLAG_FILE.unlink()
 
 
-def watchdog(stop: bool = typer.Option(False, "--stop", "-s", help="Остановить демон"),):
+def watchdog(
+        stop: bool = typer.Option(False, "--stop", "-s", help="Остановить демон"),
+        run_watchdog: bool = typer.Option(False, "--run", "-r", help="Запустить в терминале"),
+):
     """Команда: ai-context watchdog [--stop|-s] - Запуск службы (демона) для отслеживания файлов и обновления контекста"""
     if stop:
         stop_daemon()
         return
 
     # Уже внутри наблюдателя — запускаем логику
-    if _INTERNAL_FLAG in sys.argv:
+    if run_watchdog:
         start_observer()
         return
 
