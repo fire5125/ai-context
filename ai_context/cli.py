@@ -2,8 +2,8 @@ import sys
 
 import typer
 from loguru import logger
-from src.ai_context.commands import prompt, index, read_context, ai_watchdog, chat, compress
-from src.ai_context.commands import init
+from ai_context.commands import init, prompt, index, read_context, ai_watchdog, chat, compress
+
 
 # Настройка loguru вместо typer.echo/secho
 logger.remove()

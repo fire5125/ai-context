@@ -9,8 +9,8 @@ from loguru import logger
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-from src.ai_context.commands.index import load_ai_ignore, should_index
-from src.ai_context.source.settings import (
+from ai_context.commands.index import load_ai_ignore, should_index
+from ai_context.source.settings import (
     AI_CONTEXT_DIR,
     CONTEXT_DB,
     CONTEXT_FILE,
