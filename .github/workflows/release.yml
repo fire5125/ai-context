@@ -28,7 +28,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --name ai-context src/ai_context/__main__.py
+          pyinstaller --onefile --name ai-context ai_context/cli.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
