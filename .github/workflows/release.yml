@@ -3,7 +3,7 @@ name: Build and Release ai-context
 on:
   push:
     tags:
-      - 'v*.*.*'  # Триггер при создании тега вида v1.0.0
+      - 'v*.*.*'
 
 jobs:
   build:
